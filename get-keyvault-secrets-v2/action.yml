@@ -29,7 +29,7 @@ runs:
         fi
 
         # Remove spaces from 'secrets' input
-        SECRETS=$(echo "${{ input.secrets }}" | tr -d '[:space:]')
+        SECRETS=$(echo "${{ inputs.secrets }}" | tr -d '[:space:]')
         
         # Loop over secret names and retrieve them from the Key Vault
         IFS=',' read -r -a array <<< "$SECRETS"

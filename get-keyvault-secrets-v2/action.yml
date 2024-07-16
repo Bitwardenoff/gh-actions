@@ -44,7 +44,7 @@ runs:
         do
           VALUE=$(az keyvault secret show --name $secret --vault-name ${{ inputs.keyvault }} | jq -r .value)
           echo "::add-mask::$VALUE"
-          OUTPUT_JSON=$(jq '. += { "$secret": "$VALUE" }' <<< $OUTPUT_JSON)
+          OUTPUT_JSON=$(jq -n --arg key $secret --arg value $VALUE '. += { ($key): $value }' <<< $OUTPUT_JSON)
         done
 
         echo "values=$OUTPUT_JSON" >> "$GITHUB_OUTPUT"

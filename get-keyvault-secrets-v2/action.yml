@@ -10,6 +10,10 @@ inputs:
   secrets:
     description: Comma-separated list of secrets that need to be retrieved from the Key Vault
     required: true
+outputs:
+  secret-values:
+    description: Values of the retrieved secrets in a JSON object
+    value: ${{ steps.retrieve-secrets.outputs.values }}
 runs:
   using: composite
   steps:
@@ -19,6 +23,7 @@ runs:
         creds: ${{ inputs.creds }}
 
     - name: Azure CLI script
+      id: retrieve-secrets
       shell: bash
       run: |
         # Check if Key Vault exists
@@ -30,6 +35,8 @@ runs:
 
         # Remove spaces from 'secrets' input
         SECRETS=$(echo "${{ inputs.secrets }}" | tr -d '[:space:]')
+
+        OUTPUT_JSON='{}'
         
         # Loop over secret names and retrieve them from the Key Vault
         IFS=',' read -r -a array <<< "$SECRETS"
@@ -37,5 +44,7 @@ runs:
         do
           VALUE=$(az keyvault secret show --name $secret --vault-name ${{ inputs.keyvault }} | jq -r .value)
           echo "::add-mask::$VALUE"
-          echo "$secret=$VALUE" >> "$GITHUB_OUTPUT"
+          OUTPUT_JSON=$(jq '. += { "$secret": "$VALUE" }' <<< $OUTPUT_JSON)
         done
+
+        echo "values=$OUTPUT_JSON" >> "$GITHUB_OUTPUT"

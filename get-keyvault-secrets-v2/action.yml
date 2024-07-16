@@ -38,3 +38,4 @@ runs:
           VALUE=$(az keyvault secret show --name $secret --vault-name ${{ inputs.keyvault }} | jq -r .value)
           echo "::add-mask::$VALUE"
           echo "$secret=$VALUE" >> "$GITHUB_OUTPUT"
+        done

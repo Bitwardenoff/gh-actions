@@ -47,4 +47,4 @@ runs:
           OUTPUT_JSON=$(jq -n --arg key $secret --arg value $VALUE '. += { ($key): $value }' <<< $OUTPUT_JSON)
         done
 
-        echo "values=$OUTPUT_JSON" >> "$GITHUB_OUTPUT"
+        echo "values<<EOF"$'\n'"$OUTPUT_JSON"$'\n'EOF >> "$GITHUB_OUTPUT"

@@ -1,0 +1,40 @@
+name: Get Key Vault Secrets
+description: Retrieves secrets from the specified Key Vault and stores them as GitHub environment secrets
+inputs:
+  creds:
+    description: Credentials to login to Azure
+    required: true
+  keyvault:
+    description: Name of the Key Vault to retrieve secrets from
+    required: true
+  secrets:
+    description: Comma-separated list of secrets that need to be retrieved from the Key Vault
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Login to Azure
+      uses: azure/login@v2
+      with:
+        creds: ${{ inputs.creds }}
+
+    - name: Azure CLI script
+      shell: bash
+      run: |
+        # Check if Key Vault exists
+        KEYVAULT=$(az keyvault list --query "[?name == '${{ inputs.keyvault }}']" | jq -r ".[]")
+        if [[ -z ${KEYVAULT} ]]; then
+          echo "The specified Key Vault could not be found. Provided value: ${{inputs.keyvault}}"
+          exit 1
+        fi
+
+        # Remove spaces from 'secrets' input
+        SECRETS=$(echo "${{ input.secrets }}" | tr -d '[:space:]')
+        
+        # Loop over secret names and retrieve them from the Key Vault
+        IFS=',' read -r -a array <<< "$SECRETS"
+        for secret in "${array[@]}"
+        do
+          VALUE=$(az keyvault secret show --name $secret --vault-name ${{ inputs.keyvault }} | jq -r .value)
+          echo "::add-mask::$VALUE"
+          echo "$secret=$VALUE" >> "$GITHUB_OUTPUT"

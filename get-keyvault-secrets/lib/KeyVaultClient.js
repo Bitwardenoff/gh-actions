@@ -122,7 +122,9 @@ class KeyVaultClient extends AzureRestClient_1.ServiceClient {
             }
         })).then((apiResult) => callback(apiResult.error, apiResult.result), (error) => callback(error));
     }
-    getSecretValue(secretName, callback) {
+    getSecretValue(secretName, callback, attempt = 1) {
+        const MAX_RETRY_ATTEMPTS = 3; // Define the maximum number of retry attempts
+        const RETRY_DELAY = 3000; // Define the delay between retries in milliseconds
         if (!callback) {
             core.debug("Callback Cannot Be Null");
             throw new Error("Callback Cannot Be Null");
@@ -136,17 +138,53 @@ class KeyVaultClient extends AzureRestClient_1.ServiceClient {
             }, [], this.apiVersion)
         };
         this.invokeRequest(httpRequest).then((response) => __awaiter(this, void 0, void 0, function* () {
-            if (response.statusCode == 200) {
-                var result = response.body.value;
-                return new AzureRestClient_1.ApiResult(null, result);
+            try {
+                if (!response || response.statusCode == null) {
+                    throw new Error("Response or statusCode is null");
+                }
+                if (response.statusCode == 200) {
+                    var result = response.body.value;
+                    return new AzureRestClient_1.ApiResult(null, result);
+                } else if (response.statusCode == 400) {
+                    return new AzureRestClient_1.ApiResult('Get Secret Failed Because Of Invalid Characters', secretName);
+                } else {
+                    return new AzureRestClient_1.ApiResult((0, AzureRestClient_1.ToError)(response));
+                }
+            } catch (error) {
+                if (attempt < MAX_RETRY_ATTEMPTS) {
+                    core.debug(`Retrying... Attempt ${attempt + 1} after error: ${error.message}`);
+                    setTimeout(() => {
+                        this.getSecretValue(secretName, callback, attempt + 1); // Retry the request
+                    }, RETRY_DELAY);
+                } else {
+                    return new AzureRestClient_1.ApiResult(error); // Return the error if max retries reached
+                }
             }
-            else if (response.statusCode == 400) {
-                return new AzureRestClient_1.ApiResult('Get Secret Failed Because Of Invalid Characters', secretName);
+        })).then((apiResult) => {
+            if (apiResult && apiResult.error) {
+                if (attempt < MAX_RETRY_ATTEMPTS) {
+                    core.debug(`Retrying... Attempt ${attempt + 1} after apiResult error: ${apiResult.error.message}`);
+                    setTimeout(() => {
+                        this.getSecretValue(secretName, callback, attempt + 1); // Retry on apiResult error
+                    }, RETRY_DELAY);
+                } else {
+                    callback(apiResult.error, null); // If max retries reached, pass the error to the callback
+                }
+            } else if (apiResult && typeof apiResult.result !== 'undefined') {
+                callback(null, apiResult.result); // No error, pass the result
+            } else {
+                callback(new Error("Unexpected result format"), null); // Handle unexpected format
             }
-            else {
-                return new AzureRestClient_1.ApiResult((0, AzureRestClient_1.ToError)(response));
+        }, (error) => {
+            if (attempt < MAX_RETRY_ATTEMPTS) {
+                core.debug(`Retrying... Attempt ${attempt + 1} after error: ${error.message}`);
+                setTimeout(() => {
+                    this.getSecretValue(secretName, callback, attempt + 1); // Retry on promise rejection
+                }, RETRY_DELAY);
+            } else {
+                callback(error); // If max retries reached, pass the error to the callback
             }
-        })).then((apiResult) => callback(apiResult.error, apiResult.result), (error) => callback(error));
+        });
     }
     convertToAzureKeyVaults(result) {
         var listOfSecrets = [];
